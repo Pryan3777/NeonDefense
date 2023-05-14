@@ -1,0 +1,168 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class GridManager : MonoBehaviour
+{
+    #region SINGLETON
+    public static GridManager Instance;
+    void Awake() => Instance = this;
+    #endregion
+
+    private const int CAMERA_Z = -10;
+
+    // Our gameunit = .5 Unity units => 1 Unity unit = 2 gameunits
+    public const int UNIT_CONVERSION = 2;
+
+    [SerializeField] private int _gridWidth;
+    [SerializeField] private int _gridHeight;
+
+    [SerializeField] public Tile _tilePrefab;
+    [SerializeField] public Wall _wallPrefab;
+    [SerializeField] public Turret[] _turretPrefab; // DO NOT MODIFY, THAT MEANS YOU JOSEPH
+
+    [SerializeField] private Transform _cam;
+
+    [SerializeField] private Transform _tileHolder; // Changed from gameobject to transform
+    [SerializeField] private Transform _wallHolder; // Changed from gameobject to transform
+    [SerializeField] private Transform _turretHolder; // Changed from gameobject to transform
+    [SerializeField] private Transform _bulletHolder;
+
+    private Dictionary<Vector2, Tile> _tiles;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        GenerateGrid();
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+
+    }
+
+    // Generates a grid of tile objects 
+    void GenerateGrid()
+    {
+        _tiles = new Dictionary<Vector2, Tile>();
+
+        for (int x = 0; x < _gridWidth; x++)
+        {
+            for (int y = 0; y < _gridHeight; y++)
+            {
+                var spawnedTile = Instantiate(_tilePrefab, new Vector3(x * .5f, y * .5f), Quaternion.identity);
+
+                Vector2 gridPos = new Vector2(x, y);
+
+                spawnedTile.Init(gridPos, _tileHolder);
+                _tiles[gridPos] = spawnedTile;
+            }
+        }
+
+        // Used to convert camera position because of difference in world and grid units
+        
+        // OLD NEWS
+        //var camConversion = UNIT_CONVERSION * UNIT_CONVERSION;
+
+        //_cam.transform.position = new Vector3((float)_gridWidth / camConversion - 0.5f, (float)_gridHeight / camConversion - 0.5f, CAMERA_Z);
+    }
+
+    // return whether a grid pos is within bounds of the grid
+    public bool IsGridPosValid(Vector2 gridPos)
+    {
+        return gridPos.x >= 0 && gridPos.x < _gridWidth && gridPos.y >= 0 && gridPos.y < _gridHeight;
+    }
+
+    // Return a tile at pos (x, y)
+    public Tile GetTileAtPosition(Vector2 gridPos)
+    {
+        if (_tiles.TryGetValue(gridPos, out var tile))
+        {
+            return tile;
+        }
+
+        return null;
+    }
+
+    // Converts the grid pos to the world pos
+    public static Vector2 GridToWorld(Vector2 gridPos)
+    {
+        return gridPos / UNIT_CONVERSION;
+    }
+
+    // Converts the world pos to the grid pos
+    public static Vector2 WorldToGrid(Vector2 worldPos)
+    {
+        // This weird * 2 / 2 * 2... etc is just a way to round to nearest .5
+        // This is necessary because thats the size of our unit in the world
+        var x = Mathf.Round(worldPos.x * 2) / 2 * GridManager.UNIT_CONVERSION;
+        var y = Mathf.Round(worldPos.y * 2) / 2 * GridManager.UNIT_CONVERSION;
+
+        return new Vector2(x, y);
+    }
+
+    // Round to nearest tile position in world units
+    public static Vector2 RoundToTileInWorld(Vector2 worldPos)
+    {
+        var gridPos = WorldToGrid(worldPos);
+
+        return GridToWorld(gridPos);
+    }
+
+    // NEW
+    public Transform GetWallHolder()
+    {
+        return _wallHolder;
+    }
+
+    // NEW
+    public Transform GetTurretHolder()
+    {
+        return _turretHolder;
+    }
+
+    public Transform GetBulletHolder()
+    {
+        return _bulletHolder;
+    }
+
+    // Highlights tiles around a given x, y
+    public void HighlightRadiusFromPoint(Vector2 gridPos, int radius)
+    {
+        // Unhighlight to remove old radius visual
+        UnhighlightGrid();
+
+        for (int i = -radius; i <= radius; i++)
+        {
+            for (int j = -radius; j <= radius; j++)
+            {
+                var x = gridPos.x + i;
+                var y = gridPos.y + j;
+
+                var tile = GetTileAtPosition(new Vector2(x, y));
+
+                if (tile == null)
+                    continue;
+
+                tile.RadiusHighlight(true);
+            }
+        }
+    }
+
+    private void UnhighlightGrid()
+    {
+        for (int i = 0; i < _gridWidth; i++)
+        {
+            for (int j = 0; j < _gridHeight; j++)
+            {
+                var tile = GetTileAtPosition(new Vector2(i, j));
+
+                if (tile == null)
+                    continue;
+
+                tile.RadiusHighlight(false);
+            }
+        }
+    }
+}

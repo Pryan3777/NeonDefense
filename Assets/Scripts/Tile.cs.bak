@@ -1,0 +1,369 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+
+public class Tile : MonoBehaviour
+{
+    [SerializeField] private GameObject _mouseHighlight; // Highlight sprite object for when user hovers over a tile
+    [SerializeField] private GameObject _radiusHighlight; // Highlight sprite object for when tile is in radius of player
+    [SerializeField] private GameObject _multiPlaceHighlight; // Highlight sprite object for multiplace
+
+    private Turret _turretInTile = null; // Turret in this tile, null if there is no turret
+    private Wall _wallInTile = null; // Wall in this tile, null if there is no wall
+    private Base _baseInTile = null;
+    private Bridge _bridgeInTile = null;
+    private bool _containsHole = false;
+    private ParticleSystem particles;
+
+    // Store the grid position
+    Vector2 gridPos;
+
+    private void Start()
+    {
+        particles = GetComponent<ParticleSystem>();
+    }
+
+    public void Init(Vector2 gridPos, Transform tileHolder)
+    {
+        // Move the tile into the holder
+        transform.SetParent(tileHolder);
+        // Rename the tile for readability
+        name = $"Tile ({gridPos.x}, {gridPos.y})";
+
+        // Update the grid pos of this tile
+        this.gridPos = gridPos;
+    }
+
+
+    private void OnMouseEnter()
+    {
+        // check to make sure the user isnt hovering a gui
+        if (!EventSystem.current.IsPointerOverGameObject() && !GameManager.Instance.IsPaused())
+            MouseHighlight(true);
+    }
+
+    private void OnMouseExit()
+    {
+        MouseHighlight(false);
+
+       // GridManager.Instance.UnhighlightMultiplace();
+    }
+
+    private void OnMouseOver()
+    {
+        /* NOTE: Code will change depending on GUI Mockup*/
+        /* TODO: Need to implement handling of building range for battle mode vs rest mode*/
+        /*if (GridManager.Instance.IsInMultiPlace())
+        {
+            GridManager.Instance.HighlightMultiplace(this);
+        }*/
+
+        if (Input.GetMouseButtonDown(1) && !GameManager.Instance.IsPaused() && IsPlacementValid())
+        {
+            ItemView.Instance.UpdateView(null, null);
+            RemoveStructure();
+        } else if (Input.GetMouseButtonDown(0) && !GameManager.Instance.IsPaused() && GameManager.Instance.GetBuildMode() != GameManager.BUILDMODE_NONE && IsPlacementValid())
+        {
+            if (ContainsTurret())
+            {
+                ItemView.Instance.UpdateView(_turretInTile, _wallInTile); // update item view at bottom gui
+            }
+            else
+            {
+                ItemView.Instance.UpdateView(null, null);
+            }
+
+            // item view gui for wall
+            if (Input.GetKey(KeyCode.LeftControl))
+            {
+                if (ContainsWall())
+                {
+                    ItemView.Instance.UpdateView(null, _wallInTile);
+                }
+
+                GridManager.Instance.ClearMultiFill();
+            }
+            else if (Input.GetKey(KeyCode.LeftAlt))
+            {
+                // start the multiplacement
+                if (!ContainsWall())
+                {
+                    if (!GridManager.Instance.IsInMultiPlace())
+                    {
+                        GridManager.Instance.SetIsInMultiPlace(true);
+                        GridManager.Instance.SetFirstTile(this, true); // true means wall opposed to bridge
+                        MultiPlaceHighlight(true);
+                    }
+                    else
+                    {
+                        GridManager.Instance.SetSecondTile(this);
+                        GridManager.Instance.MultiFill();
+                    }
+                }
+            }
+            else
+            {
+                GridManager.Instance.ClearMultiFill();
+                PlaceStructure();
+            }
+        }
+        /*
+        // Place structure if in a build mode (-> build), otherwise check if in remove mode (-
+        if (!PlaceStructure() && GameManager.Instance.GetBuildMode() == GameManager.BUILDMODE_REMOVE && IsPlacementValid())
+            RemoveStructure();
+        */        
+    }
+
+    // Added checks with the placement validity
+    private bool PlaceStructure()
+    {
+        if (GameManager.Instance.GetBuildMode() == GameManager.BUILDMODE_TURRET && IsPlacementValid())
+        {
+            SetTurret(GameManager.Instance.GetTurretType());
+            return true;
+        }
+        else if (GameManager.Instance.GetBuildMode() == GameManager.BUILDMODE_WALL && IsPlacementValid())
+        {
+            SetWall();
+            return true;
+        }
+        else if (GameManager.Instance.GetBuildMode() == GameManager.BUILDMODE_BRIDGE && IsPlacementValid())
+        {
+            SetBridge();
+            return true;
+        }
+
+
+        return false;
+    }
+    // NEW
+    // NOTE: Still need to check if enough resources to build
+    // idea: maybe player could earn resources during battle by moving to areas
+    private bool IsPlacementValid()
+    {
+        var gameMode = GameManager.Instance.GetGameMode();
+
+        // Case where player in battle game mode -> position and radius matter
+        if (gameMode == GameManager.GAMEMODE_BATTLE && IsPlacementRadius())
+        {
+            return true;
+        } else if (gameMode == GameManager.GAMEMODE_REST)
+        {
+            return true;
+        }
+
+        return false;
+    }
+    // NEW
+    private bool IsPlacementRadius()
+    {
+        var distance = GameManager.Instance.GetDistanceFromPlayer(gridPos);
+        var radius = GameManager.Instance.GetPlayerBuildRadius();
+
+        return distance <= radius;
+    }
+
+    public bool ContainsWall()
+    {
+        return _wallInTile != null;
+    }
+
+    public bool ContainsTurret()
+    {
+        return _turretInTile != null;
+    }
+
+    public Turret GetTurret()
+    {
+        return _turretInTile;
+    }
+
+    public bool ContainsBase()
+    {
+        return _baseInTile != null;
+    }
+
+    public bool ContainsBridge()
+    {
+        return _bridgeInTile != null;
+    }
+
+    public bool ContainsHole()
+    {
+        return _containsHole;
+    }
+
+    public Wall GetWall()
+    {
+        return _wallInTile;
+    }
+
+    public void SetWall()
+    {
+        var wallPrefab = GridManager.Instance._wallPrefab;
+
+        if (!ContainsWall() && !ContainsTurret() && !ContainsBridge() && !ContainsHole() && EconomyManager.Instance.BuyItem(wallPrefab))
+        {
+            var wall = Instantiate(wallPrefab, GridManager.GridToWorld(gridPos), Quaternion.identity);
+			
+			GameManager.Instance.setUpdate();
+			
+            _wallInTile = wall;
+
+            AudioManager.Instance.PlaySound(AudioManager.PLACE_STRUCTURE);
+        }
+    }
+
+    public void SetTurret(int turretType)
+    {
+        /* NOTE: (GAME MANAGER) Also check if enough currency / resources to build with  */
+        // Create the turret at the *world* pos 
+        var turretPrefab = GridManager.Instance._turretPrefab[turretType];
+
+        // check if we can buy that
+        if (ContainsWall() && !ContainsTurret() && !ContainsHole() && EconomyManager.Instance.BuyItem(turretPrefab))
+        {
+            var turret = Instantiate(turretPrefab, GridManager.GridToWorld(gridPos), Quaternion.identity);
+
+            _turretInTile = turret;
+
+            // play particles when we set a turret
+            PlayParticles(turret.GetColor());
+
+            // Play audio to indicate a structure has been placed
+            AudioManager.Instance.PlaySound(AudioManager.PLACE_STRUCTURE);
+        }
+    }
+
+    // set where the base should be
+    // ONLY CALLED BY GRID MANAGER (FOR NOW)
+    public void SetBase()
+    {
+        if (!ContainsWall() && !ContainsTurret())
+        {
+            var b = Instantiate(GridManager.Instance._basePrefab, GridManager.GridToWorld(gridPos), Quaternion.identity);
+
+            _baseInTile = b;
+        }
+    }
+
+    public void SetBridge()
+    {
+        bool valid = !ContainsBridge() && !ContainsWall() && !ContainsTurret() && !ContainsBase() && !ContainsHole();
+        var bridgePrefab = GridManager.Instance._bridgePrefab;
+
+        // check if we can buy
+        if (valid && EconomyManager.Instance.BuyItem(bridgePrefab))
+        {
+            var bridge = Instantiate(bridgePrefab, GridManager.GridToWorld(gridPos), Quaternion.identity);
+
+            _bridgeInTile = bridge;
+
+            AudioManager.Instance.PlaySound(AudioManager.PLACE_BRIDGE);
+        }
+    }
+
+    public void SetHole()
+    {
+        _containsHole = true;
+    }
+
+    private void RemoveStructure()
+    {
+        if (ContainsTurret() && ContainsWall())
+        {
+            RemoveTurret();
+
+            AudioManager.Instance.PlaySound(AudioManager.REMOVE_STRUCTURE);
+        }
+        else if (ContainsWall())
+        {
+            RemoveWall();
+
+            AudioManager.Instance.PlaySound(AudioManager.REMOVE_STRUCTURE);
+        }
+        else if (ContainsBridge())
+        {
+            RemoveBridge();
+
+            AudioManager.Instance.PlaySound(AudioManager.REMOVE_STRUCTURE);
+        }
+    }
+
+    public void RemoveTurret()
+    {
+        // sell the item
+        EconomyManager.Instance.SellItem(_turretInTile);
+        Destroy(_turretInTile.gameObject);
+        _turretInTile = null;
+    }
+	
+    public void RemoveWall()
+    {
+        // sell the item
+        EconomyManager.Instance.SellItem(_wallInTile);
+        Destroy(_wallInTile.gameObject);
+		GameManager.Instance.setUpdate();
+        _wallInTile = null;
+    }
+
+	public bool DamageWall(float f)
+	{
+		if(_wallInTile.gameObject != null)
+		{
+			if(_wallInTile.Damage(f))
+			{
+				if(_turretInTile.gameObject != null)
+				{
+					Destroy(_turretInTile.gameObject);
+				}
+				return true;
+			}
+			return false;
+		}
+	}
+
+    public void RemoveBridge()
+    {
+        // sell the item
+        EconomyManager.Instance.SellItem(_bridgeInTile);
+        Destroy(_bridgeInTile.gameObject);
+        _bridgeInTile = null;
+    }
+
+    public void MouseHighlight(bool isEnabled) 
+    {
+        if (isEnabled && !ContainsTurret())
+            _mouseHighlight.SetActive(true);
+        else
+            _mouseHighlight.SetActive(false);
+    }
+
+    public void RadiusHighlight(bool isEnabled)
+    {
+        if (isEnabled && !ContainsTurret())
+            _radiusHighlight.SetActive(true);
+        else
+            _radiusHighlight.SetActive(false);
+    }
+
+    public void MultiPlaceHighlight(bool isEnabled)
+    {
+        _multiPlaceHighlight.SetActive(isEnabled);
+    }
+
+    public void PlayParticles(Color color)
+    {
+        var main = particles.main;
+        main.startColor = color;
+
+        particles.Play();
+    }
+
+    public Vector2 GetGridPos()
+    {
+        return gridPos;
+    }
+}
+

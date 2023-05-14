@@ -1,0 +1,115 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class EconomyManager : MonoBehaviour
+{
+    #region SINGLETON
+    public static EconomyManager Instance;
+    void Awake() => Instance = this;
+    #endregion
+
+    [SerializeField] private int currentMoney = 1000;
+
+    private static int MAX_MONEY = 999999999;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        UpdateMoneyLabel();
+    }
+
+    public void AddMoney(int amount)
+    {
+        currentMoney += amount;
+        UpdateMoneyLabel();
+    }
+
+    private void RemoveMoney(int amount)
+    {
+        currentMoney -= amount;
+        UpdateMoneyLabel();
+    }
+
+    // return whether or not it is valid purchase
+    public bool BuyItem(Item item)
+    {
+        var cost = item.GetBuyPrice();
+
+        if (cost <= currentMoney)
+        {
+            RemoveMoney(cost);
+
+            UpdateMoneyLabel();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public void SellItem(Item item)
+    {
+        var worth = item.GetSellPrice();
+
+        AddMoney(worth);
+
+        UpdateMoneyLabel();
+
+        // get rid of the item
+        Destroy(item);
+    }
+
+    public bool UpgradeDamage(Turret turret)
+    {
+        var cost = turret.GetUpgradeDamageCost();
+
+        if (cost <= currentMoney)
+        {
+            RemoveMoney(cost);
+
+            UpdateMoneyLabel();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool UpgradeFreeze(Turret turret)
+    {
+        var cost = turret.GetUpgradeFreezeCost();
+
+        if (cost <= currentMoney)
+        {
+            RemoveMoney(cost);
+
+            UpdateMoneyLabel();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool UpgradePoison(Turret turret)
+    {
+        var cost = turret.GetUpgradePoisonCost();
+
+        if (cost <= currentMoney)
+        {
+            RemoveMoney(cost);
+
+            UpdateMoneyLabel();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private void UpdateMoneyLabel()
+    {
+        UIManager.Instance.UpdateMoneyLabel(currentMoney);
+    }
+}

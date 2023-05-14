@@ -1,0 +1,38 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Wall : MonoBehaviour
+{
+    private Transform _wallHolder;
+    // starting health. adjustable
+    [SerializeField] private float health = 100;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        _wallHolder = GridManager.Instance.GetWallHolder();
+
+        if (_wallHolder != null)
+            transform.SetParent(_wallHolder);
+    }
+
+    // returns true if wall is destroyed
+    public bool Damage(float damageAmount)
+    {
+        health -= damageAmount;
+
+        if (health <= 0)
+        {
+            Destroy();
+            return true;
+        }
+        return false;
+    }
+
+    private void Destroy()
+    {
+		GameManager.Instance.setUpdate();
+        Destroy(gameObject);
+    }
+}

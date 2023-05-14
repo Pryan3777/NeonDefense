@@ -1,0 +1,206 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class GameManager : MonoBehaviour
+{
+    #region SINGLETON
+    public static GameManager Instance;
+    void Awake() => Instance = this;
+    #endregion
+
+    #region Game Modes
+    public static readonly int GAMEMODE_BATTLE = 0;
+    public static readonly int GAMEMODE_REST = 1;
+    public static readonly int GAMEMODE_LOSE = 2;
+    #endregion
+
+    #region Build Modes
+    public static readonly int BUILDMODE_NONE = 0;
+    public static readonly int BUILDMODE_WALL = 1;
+    public static readonly int BUILDMODE_TURRET = 2;
+    public static readonly int BUILDMODE_REMOVE = 3;
+    #endregion
+
+    [SerializeField] private int buildMode = BUILDMODE_NONE;
+    [SerializeField] private int gameMode = GAMEMODE_REST;
+
+    [SerializeField] private Player player; // NEW
+
+    [SerializeField] private int playerBuildRadius = 3; // NEW
+
+    private int turretTypeSelected = Turret.TURRET_DEFAULT;
+	private int gridUpdate;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        gridUpdate = 0;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        // IDEA: Input manager maybe later?
+        // handles the user input for switching between building / turrets etc
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            // set to wall build mode
+            SetBuildMode(BUILDMODE_WALL);
+
+            // store the index (more readable code for next line)
+            var index = UIManager.BUTTON_INDEX_WALL;
+
+            // show this as the current placeable selected in the UI
+            UIManager.Instance.SelectButtonPlaceables(index);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha2))
+        {
+            // set to turret build mode with designated turret
+            SetBuildMode(BUILDMODE_TURRET);
+            SetTurretType(Turret.TURRET_DEFAULT);
+
+            // store the index (more readable code for next line)
+            var index = UIManager.BUTTON_INDEX_TURRET_DEFAULT;
+
+            // show this as the current placeable selected in the UI
+            UIManager.Instance.SelectButtonPlaceables(index);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha3))
+        {
+            // set to turret build mode with designated turret
+            SetBuildMode(BUILDMODE_TURRET);
+            SetTurretType(Turret.TURRET_BURST);
+
+            // store the index (more readable code for next line)
+            var index = UIManager.BUTTON_INDEX_TURRET_BURST;
+
+            // show this as the current placeable selected in the UI
+            UIManager.Instance.SelectButtonPlaceables(index);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha4))
+        {
+            // set to turret build mode with designated turret
+            SetBuildMode(BUILDMODE_TURRET);
+            SetTurretType(Turret.TURRET_LASER);
+
+            // store the index (more readable code for next line)
+            var index = UIManager.BUTTON_INDEX_TURRET_LASER;
+
+            // show this as the current placeable selected in the UI
+            UIManager.Instance.SelectButtonPlaceables(index);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha5))
+        {
+            // set to turret build mode with designated turret
+            SetBuildMode(BUILDMODE_TURRET);
+            SetTurretType(Turret.TURRET_MORTAR);
+
+            // store the index (more readable code for next line)
+            var index = UIManager.BUTTON_INDEX_TURRET_LASER;
+
+            // show this as the current placeable selected in the UI
+            UIManager.Instance.SelectButtonPlaceables(index);
+        }
+
+        #region OLD CODE
+        /*
+        // Temporary way to switch between the 'Build Modes'
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            SetBuildMode(BUILDMODE_WALL);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha2))
+        {
+            SetBuildMode(BUILDMODE_TURRET);
+        }
+        else if (Input.GetKeyDown(KeyCode.Alpha3))
+        {
+            SetBuildMode(BUILDMODE_REMOVE);
+        }
+
+
+        // Temporary way to switch between the 'Turret to be placed'
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            SetTurretType(Turret.TURRET_DEFAULT);
+        }
+        else if (Input.GetKeyDown(KeyCode.X)) 
+        {
+            SetTurretType(Turret.TURRET_LASER);
+        }
+        else if (Input.GetKeyDown(KeyCode.C))
+        {
+            SetTurretType(Turret.TURRET_BURST);
+        }
+        */
+
+        #endregion
+    }
+
+    public void SetBuildMode(int buildMode)
+    {
+        this.buildMode = buildMode;
+    }
+
+    public int GetBuildMode()
+    {
+        return buildMode;
+    }
+
+    public void SetGameMode(int gameMode)
+    {
+        this.gameMode = gameMode;
+    }
+
+    public int GetGameMode()
+    {
+        return gameMode;
+    }
+
+    public void SetTurretType(int turretType)
+    {
+        turretTypeSelected = turretType;
+    }
+
+    public int GetTurretType()
+    {
+        return turretTypeSelected;
+    }
+
+    // NEW
+    public int GetPlayerBuildRadius()
+    {
+        return playerBuildRadius;
+    }
+
+    // NEW : GRID DISTANCE!
+    public double GetDistanceFromPlayer(Vector2 gridPos)
+    {
+        var playerPos = player.GetGridPos();
+
+        var xDist = Mathf.Abs(gridPos.x - playerPos.x);
+        var yDist = Mathf.Abs(gridPos.y - playerPos.y);
+
+        if (xDist == 0)
+        {
+            return yDist;
+        }
+        else if (yDist == 0)
+        {
+            return xDist;
+        }
+
+        return Mathf.Max(xDist, yDist);
+    }
+	
+	public int getUpdate()
+	{
+		return gridUpdate;
+	}
+	
+	public void setUpdate()
+	{
+		gridUpdate++;
+	}
+}

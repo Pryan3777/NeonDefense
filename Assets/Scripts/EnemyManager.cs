@@ -1,0 +1,212 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class EnemyManager : MonoBehaviour
+{
+    #region SINGLETON
+    public static EnemyManager Instance;
+    void Awake() => Instance = this;
+    #endregion
+
+    [SerializeField] public Enemy enemyPrefab;
+    private float currentTime;
+    private float startTime;
+    [SerializeField] private float timeBetweenSpawns = .3f;
+    [SerializeField] private int enemyCount = 0;
+    [SerializeField] Text enemyCountText;
+    [SerializeField] int enemySpawnNumber;
+    private bool roundStartLatch = false;
+	private int moneyThisRound;
+	public float hpMult = 1.0f;
+
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        currentTime = Time.time;
+        startTime = Time.time;
+
+        //StartCoroutine(SpawnEnemies());
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        /*
+        if (isBattlePhase && currentTime - startTime > spawnWaitTime && enemyCount < enemySpawnNumber)
+        {
+            // spawn an enemy reaeeall quick
+            Instantiate(enemyPrefab, new Vector2(0, 3), Quaternion.identity);
+            startTime = Time.time;
+
+            enemyCount++;
+            enemyCountText.text = "enemy count: " + enemyCount.ToString();
+        }
+
+        currentTime = Time.time;
+        */
+
+        if (Enemy.GetNumEnemiesAlive() == 0 && enemyCount == enemySpawnNumber && roundStartLatch == false)
+        {
+            RoundOver();
+            roundStartLatch = true;
+        }
+    }
+
+    public void RoundStart()
+    {
+        enemyCount = 0;
+
+        // hide the item view panel
+        ItemView.Instance.SetInactive();
+
+        // set the round button to false once they have clicked it
+
+        UIManager.Instance.ToggleStartRoundButton(false);
+        StartCoroutine(SpawnEnemies());
+        GameManager.Instance.IncrementRound();
+
+        roundStartLatch = false;
+    }
+
+    private void RoundOver()
+    {
+        // hide the item view panel
+        ItemView.Instance.SetInactive();
+
+        UIManager.Instance.ShowRoundStatsPanel();
+
+        // reset the enemies killed
+        // this is before they have a chance to start the next round
+        Enemy.ResetNumEnemiesKilled();
+        Bullet.ResetBulletsFired();
+        // set the round button to true so that they can press
+        // when they are ready
+        UIManager.Instance.ToggleStartRoundButton(true);
+        GameManager.Instance.SetGameMode(GameManager.GAMEMODE_REST);
+		EconomyManager.Instance.AddMoney(moneyThisRound);
+        // CLEAR ALL ENEMIES
+    }
+
+    private IEnumerator SpawnEnemies()
+    {
+		int[] healthStats = new int[5]{1, 2, 4, 2, 5};
+		int[] speedStats = new int[5]{3, 5, 2, 4, 1};
+		int[] bruteStats = new int[5]{2, 1, 4, 5, 5};
+		Color[] colors = {new Color(0.0f,1.0f,0.0f,1.0f), new Color(0.0f,0.0f,1.0f,1.0f), new Color(1.0f,1.0f,0.0f,1.0f), new Color(1.0f,0.0f,0.0f,1.0f), new Color(1.0f,0.0f,1.0f,1.0f)};
+		
+			var r = GameManager.Instance.GetCurrentRound() + 1;
+			float numEf = 1.5f * Mathf.Floor(5.0f + (.75f * r * r) + (.5f * r)); //operatorname{floor}\left(\ 5\ +\ \left(.05x^{2}\right)\ +\ .5x\right)
+			int numE = (int)numEf;
+			enemySpawnNumber = numE;
+
+        if (r < 5)
+            moneyThisRound = numE * 85; // was 100
+        else if (r < 10)
+            moneyThisRound = numE * 75; // was 100
+        else if (r < 15)
+            moneyThisRound = numE * 60; // was 100
+        else
+            moneyThisRound = numE * 50;
+
+			List<int> enemies = new List<int>();
+			List<bool> splitters = new List<bool>();
+			List<bool> exploders = new List<bool>();
+			var cE = 0;
+			int[] specialE = new int[] {1, 2, 3, 5, 7};
+			for(var x = specialE.Length - 1; x >= 0; x--)
+			{
+				var cur = Mathf.Min(Mathf.Max(r % specialE[x] == 0 ? numE / specialE[x] : 0.0f , r / specialE[x]) , numE / specialE[x]);
+				for(var y = 0; y < cur; y++)
+				{
+					if(cE < numE)
+					{
+						cE++;
+						enemies.Add(x);
+					}
+				}
+			}
+			while(cE  < numE)
+			{
+				cE++;
+				enemies.Add(1);
+			}
+			for(var x = 0; x < numE; x++)
+			{
+				if((r / 4) * 2 > x)
+				{
+					splitters.Add(true);
+				}
+				else
+				{
+					splitters.Add(false);
+				}
+				if((r / 3) * 3 > x)
+				{
+					exploders.Add(true);
+				}
+				else
+				{
+					exploders.Add(false);
+				}
+			}
+			
+			shuffleI(enemies);
+			shuffleB(splitters);
+			shuffleB(exploders);
+			//printList(enemies);
+			for(var c = 0; c < enemies.Count; c++)
+			{
+				var vec = new Vector2(0, UnityEngine.Random.Range(1,8));
+            var enemy = Instantiate(enemyPrefab, vec, Quaternion.identity);
+			
+			enemy.newBruteStat = bruteStats[enemies[c]];
+			enemy.newSpeedStat = speedStats[enemies[c]];
+			enemy.newHealthStat = healthStats[enemies[c]];
+			enemy.setSplitter(splitters[c]);
+			enemy.setExplode(exploders[c]);
+			enemy.color = colors[enemies[c]];
+			enemy.hpMult = hpMult;
+			
+            UpdateDebug();
+            yield return new WaitForSeconds(timeBetweenSpawns * 5.0f / numE); // wait till the next round
+			}
+			hpMult = hpMult * 1.1f;
+    }
+
+    private void UpdateDebug()
+    {
+        enemyCount++;
+        enemyCountText.text = "enemy count: " + enemyCount.ToString();
+    }
+	
+	private void shuffleI(List<int> alpha)
+	{
+		for (int i = 0; i < alpha.Count; i++) {
+         int temp = alpha[i];
+         int randomIndex = Random.Range(i, alpha.Count);
+         alpha[i] = alpha[randomIndex];
+         alpha[randomIndex] = temp;
+		}
+	}
+	
+	private void shuffleB(List<bool> alpha)
+	{
+		for (int i = 0; i < alpha.Count; i++) {
+         bool temp = alpha[i];
+         int randomIndex = Random.Range(i, alpha.Count);
+         alpha[i] = alpha[randomIndex];
+         alpha[randomIndex] = temp;
+     }
+	}
+	
+	private void printList(List<int> alpha)
+	{
+		foreach(var a in alpha)
+		{
+			Debug.Log(a);
+		}
+	}
+}
